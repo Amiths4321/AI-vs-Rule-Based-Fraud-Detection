@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI vs Rule-Based Fraud Detection — TJSB/AJHC Banking Demo</title>
+<style>
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #22263a;
+    --border:    #2e3250;
+    --text:      #e8eaf0;
+    --muted:     #8892aa;
+    --rule:      #e74c3c;
+    --rule-soft: rgba(231,76,60,0.12);
+    --ai:        #27ae60;
+    --ai-soft:   rgba(39,174,96,0.12);
+    --warn:      #f39c12;
+    --warn-soft: rgba(243,156,18,0.12);
+    --blue:      #3498db;
+    --radius:    10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  header h1 span { color: var(--blue); }
+  .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .tag { background: var(--ai-soft); color: var(--ai); border: 1px solid var(--ai); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+  main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; }
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .card-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .card-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .card.rule { border-left: 3px solid var(--rule); }
+  .card.ai   { border-left: 3px solid var(--ai); }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .panel.rule-panel { border-top: 3px solid var(--rule); }
+  .panel.ai-panel   { border-top: 3px solid var(--ai); }
+  .panel-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .panel-title .badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
+  .badge.rule { background: var(--rule-soft); color: var(--rule); }
+  .badge.ai   { background: var(--ai-soft);   color: var(--ai); }
+
+  .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-name  { color: var(--muted); font-size: 12px; }
+  .metric-val   { font-size: 18px; font-weight: 700; }
+  .metric-val.good  { color: var(--ai); }
+  .metric-val.bad   { color: var(--rule); }
+  .metric-val.warn  { color: var(--warn); }
+  .bar-wrap { width: 100%; height: 6px; background: var(--border); border-radius: 3px; margin-top: 4px; }
+  .bar { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .bar.rule { background: var(--rule); }
+  .bar.ai   { background: var(--ai); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+  th { background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; font-weight: 600; }
+  td { padding: 11px 14px; border-top: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .fraud-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .fraud-badge.upi      { background: rgba(142,68,173,0.15); color: #9b59b6; }
+  .fraud-badge.phishing { background: rgba(231,76,60,0.15);  color: #e74c3c; }
+  .fraud-badge.social   { background: rgba(243,156,18,0.15); color: #f39c12; }
+  .fraud-badge.card     { background: rgba(52,152,219,0.15); color: #3498db; }
+  .fraud-badge.mule     { background: rgba(26,188,156,0.15); color: #1abc9c; }
+  .rate { font-weight: 700; }
+  .rate.good { color: var(--ai); }
+  .rate.bad  { color: var(--rule); }
+
+  .txn-filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .filter-btn:hover, .filter-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .txn-list { display: flex; flex-direction: column; gap: 8px; }
+  .txn-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr 1fr auto auto; gap: 12px; align-items: center; }
+  .txn-card.is-fraud { border-left: 3px solid var(--rule); }
+  .txn-id   { font-family: monospace; font-size: 12px; color: var(--muted); }
+  .txn-amt  { font-size: 15px; font-weight: 700; }
+  .txn-meta { font-size: 11px; color: var(--muted); }
+  .verdict  { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .verdict-chip { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 8px; text-transform: uppercase; min-width: 70px; text-align: center; }
+  .verdict-chip.flagged { background: var(--rule-soft); color: var(--rule); border: 1px solid var(--rule); }
+  .verdict-chip.clear   { background: var(--ai-soft);   color: var(--ai);   border: 1px solid var(--ai); }
+  .verdict-chip.label   { color: var(--muted); border: 1px solid var(--border); background: transparent; font-size: 9px; }
+  .risk-pill { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
+  .risk-pill.high   { background: rgba(231,76,60,0.15);  color: var(--rule); }
+  .risk-pill.medium { background: var(--warn-soft);       color: var(--warn); }
+  .risk-pill.low    { background: var(--ai-soft);         color: var(--ai); }
+  .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 14px; align-items: center; color: var(--muted); font-size: 12px; }
+  .page-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .page-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+
+  .insight { background: var(--surface2); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+  .insight strong { color: var(--text); }
+
+  .controls { display: flex; gap: 10px; align-items: center; }
+  .ctrl-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .ctrl-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .ctrl-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .summary-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .banner-card { border-radius: var(--radius); padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; }
+  .banner-card.missed { background: rgba(231,76,60,0.1);  border: 1px solid rgba(231,76,60,0.3); }
+  .banner-card.caught { background: rgba(39,174,96,0.1);  border: 1px solid rgba(39,174,96,0.3); }
+  .banner-card.fp     { background: rgba(243,156,18,0.1); border: 1px solid rgba(243,156,18,0.3); }
+  .banner-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .banner-card.missed .banner-title { color: var(--rule); }
+  .banner-card.caught .banner-title { color: var(--ai); }
+  .banner-card.fp     .banner-title { color: var(--warn); }
+  .banner-num { font-size: 32px; font-weight: 800; }
+  .banner-card.missed .banner-num { color: var(--rule); }
+  .banner-card.caught .banner-num { color: var(--ai); }
+  .banner-card.fp     .banner-num { color: var(--warn); }
+  .banner-sub { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏦 AI vs Rule-Based Fraud Detection — <span>Banking Demo</span></h1>
+    <div class="subtitle">Simulates transaction patterns from Indian UCBs (TJSB / AJHC context) · UPI, phishing, account-takeover, card-skimming, mule-account fraud patterns</div>
+  </div>
+  <div class="controls">
+    <span id="statusTag" class="tag">Loading...</span>
+    <button class="ctrl-btn" onclick="reinitialize()">🔄 New Dataset</button>
+  </div>
+</header>
+
+<main>
+
+  <div class="insight">
+    <strong>What this demo shows:</strong> Traditional rule-based fraud systems (used by most cooperative banks today) rely on fixed thresholds — e.g. "flag any transaction above ₹50,000 or after 11pm."
+    AI models learn the <em>behavioural envelope</em> of each customer and detect anomalies even when individual signals don't cross any fixed threshold.
+    The gap between the two is <strong>measured in fraud rupees missed and legitimate customers wrongly blocked.</strong>
+  </div>
+
+  <section>
+    <h2>📊 Head-to-Head Performance</h2>
+    <div id="summaryBanner" class="summary-banner">
+      <div class="loading"><span class="spinner"></span> Loading...</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>📈 Detection Metrics</h2>
+    <div class="compare-grid" id="metricsGrid">
+      <div class="loading"><span class="spinner"></span> Loading...</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>🎯 Fraud Type Detection Rates</h2>
+    <table id="fraudTable">
+      <thead><tr><th>Fraud Pattern</th><th>Total Cases</th><th>Rule-Based Caught</th><th>AI Caught</th><th>AI Advantage</th></tr></thead>
+      <tbody><tr><td colspan="5" class="loading"><span class="spinner"></span> Loading...</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🔍 Transaction-Level Comparison</h2>
+    <div class="txn-filters">
+      <button class="filter-btn active" onclick="setFilter('all',this)">All Transactions</button>
+      <button class="filter-btn" onclick="setFilter('fraud',this)">Only Fraud</button>
+      <button class="filter-btn" onclick="setFilter('legitimate',this)">Only Legitimate</button>
+      <button class="filter-btn" onclick="setFilter('disagreements',this)">⚡ AI vs Rule Disagreements</button>
+      <button class="filter-btn" onclick="setFilter('missed_fraud',this)">🚨 Fraud AI Caught, Rules Missed</button>
+    </div>
+    <div id="txnList" class="txn-list">
+      <div class="loading"><span class="spinner"></span> Loading transactions...</div>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </section>
+
+</main>
+
+<script>
+const API = 'http://localhost:5000/api';
+let currentFilter = 'all';
+let currentPage   = 1;
+let metricsData   = null;
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  return r.json();
+}
+
+async function loadStatus() {
+  const s = await fetchJSON(`${API}/status`);
+  document.getElementById('statusTag').textContent =
+    `${s.total_transactions} txns · ${s.fraud_count} fraud · ${s.legitimate_count} legit`;
+}
+
+async function loadMetrics() {
+  const data = await fetchJSON(`${API}/metrics`);
+  metricsData = data;
+  renderSummaryBanner(data);
+  renderMetricsGrid(data);
+}
+
+function renderSummaryBanner(data) {
+  const r = data.rule_based;
+  const a = data.ai_model;
+  const missedDiff = r.fraud_missed - a.fraud_missed;
+  const fpDiff     = r.false_positives - a.false_positives;
+
+  document.getElementById('summaryBanner').innerHTML = `
+    <div class="banner-card missed">
+      <div class="banner-title">💀 Fraud Missed by Rules (Not by AI)</div>
+      <div class="banner-num">${missedDiff > 0 ? '+' : ''}${missedDiff}</div>
+      <div class="banner-sub">Rules missed ${r.fraud_missed} total · AI missed ${a.fraud_missed}</div>
+    </div>
+    <div class="banner-card caught">
+      <div class="banner-title">✅ AI Recall Advantage</div>
+      <div class="banner-num">+${(a.recall - r.recall).toFixed(1)}%</div>
+      <div class="banner-sub">AI catches ${a.recall}% of fraud · Rules catch ${r.recall}%</div>
+    </div>
+    <div class="banner-card fp">
+      <div class="banner-title">⚠️ Fewer False Alarms (AI)</div>
+      <div class="banner-num">${fpDiff >= 0 ? '-' : '+'}${Math.abs(fpDiff)}</div>
+      <div class="banner-sub">AI FP rate ${a.false_positive_rate}% · Rules FP rate ${r.false_positive_rate}%</div>
+    </div>
+  `;
+}
+
+function renderMetricsGrid(data) {
+  function panel(d, cls) {
+    const isAI = cls === 'ai';
+    return `
+      <div class="panel ${cls}-panel">
+        <div class="panel-title">
+          ${isAI ? '🤖' : '⚙️'} ${d.detector}
+          <span class="badge ${cls}">${isAI ? 'AI' : 'RULES'}</span>
+        </div>
+        <div class="metric-row">
+          <div>
+            <div class="metric-name">Recall (Fraud Caught)</div>
+            <div class="bar-wrap"><div class="bar ${cls}" style="width:${d.recall}%"></div></div>
+          </div>
+          <div class="metric-val ${d.recall > 70 ? 'good' : 'bad'}">${d.recall}%</div>
+        </div>
+        <div class="metric-row">
+          <div>
+            <div class="metric-name">False Positive Rate (Legit Blocked)</div>
+            <div class="bar-wrap"><div class="bar ${cls}" style="width:${Math.min(d.false_positive_rate,100)}%"></div></div>
+          </div>
+          <div class="metric-val ${d.false_positive_rate < 20 ? 'good' : 'bad'}">${d.false_positive_rate}%</div>
+        </div>
+        <div class="metric-row">
+          <div>
+            <div class="metric-name">Precision</div>
+            <div class="bar-wrap"><div class="bar ${cls}" style="width:${d.precision}%"></div></div>
+          </div>
+          <div class="metric-val ${d.precision > 60 ? 'good' : 'warn'}">${d.precision}%</div>
+        </div>
+        <div class="metric-row">
+          <div>
+            <div class="metric-name">F1 Score (Balance)</div>
+            <div class="bar-wrap"><div class="bar ${cls}" style="width:${d.f1_score}%"></div></div>
+          </div>
+          <div class="metric-val ${d.f1_score > 60 ? 'good' : 'bad'}">${d.f1_score}%</div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-name">Total Fraud Missed</div>
+          <div class="metric-val ${d.fraud_missed === 0 ? 'good' : 'bad'}">${d.fraud_missed}</div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-name">Total Flagged (TP + FP)</div>
+          <div class="metric-val">${d.total_flagged}</div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-name">Accuracy</div>
+          <div class="metric-val ${d.accuracy > 85 ? 'good' : 'warn'}">${d.accuracy}%</div>
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('metricsGrid').innerHTML =
+    panel(data.rule_based, 'rule') + panel(data.ai_model, 'ai');
+}
+
+async function loadFraudTypes() {
+  const types = await fetchJSON(`${API}/fraud_types`);
+  const FRAUD_LABELS = {
+    'upi_takeover':        { label: 'UPI Account Takeover',          cls: 'upi' },
+    'phishing_credential': { label: 'Phishing / Credential Theft',   cls: 'phishing' },
+    'social_engineering':  { label: 'Social Engineering',            cls: 'social' },
+    'card_skimming':       { label: 'Card / ATM Skimming',           cls: 'card' },
+    'mule_account':        { label: 'Mule Account / Money Laundering', cls: 'mule' },
+  };
+
+  const rows = types.map(t => {
+    const info = FRAUD_LABELS[t.fraud_type] || { label: t.fraud_type, cls: 'phishing' };
+    const diff = t.ai_detection_rate - t.rule_detection_rate;
+    return `
+      <tr>
+        <td><span class="fraud-badge ${info.cls}">${info.label}</span></td>
+        <td>${t.count}</td>
+        <td>
+          <span class="rate ${t.rule_detection_rate > 70 ? 'good' : 'bad'}">${t.rule_detection_rate}%</span>
+          <span style="color:var(--muted);font-size:11px;margin-left:4px">(${t.rule_caught}/${t.count})</span>
+        </td>
+        <td>
+          <span class="rate ${t.ai_detection_rate > 70 ? 'good' : 'bad'}">${t.ai_detection_rate}%</span>
+          <span style="color:var(--muted);font-size:11px;margin-left:4px">(${t.ai_caught}/${t.count})</span>
+        </td>
+        <td>
+          <span style="color:${diff > 0 ? 'var(--ai)' : diff < 0 ? 'var(--rule)' : 'var(--muted)'}; font-weight:700">
+            ${diff > 0 ? '▲ +' : diff < 0 ? '▼ ' : '±'}${Math.abs(diff).toFixed(1)}%
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  document.querySelector('#fraudTable tbody').innerHTML = rows;
+}
+
+async function loadTransactions() {
+  const url = `${API}/transactions?page=${currentPage}&per_page=15&filter=${currentFilter}`;
+  const data = await fetchJSON(url);
+  const list = document.getElementById('txnList');
+
+  if (!data.transactions.length) {
+    list.innerHTML = '<div class="loading">No transactions for this filter.</div>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = data.transactions.map(t => {
+    const riskClass = t.ai_risk_score > 60 ? 'high' : t.ai_risk_score > 35 ? 'medium' : 'low';
+    const ruleChip  = t.rule_flagged ? '🚨 FLAGGED' : '✅ CLEAR';
+    const aiChip    = t.ai_flagged   ? '🚨 FLAGGED' : '✅ CLEAR';
+    return `
+      <div class="txn-card ${t.is_fraud ? 'is-fraud' : ''}">
+        <div>
+          <div class="txn-id">${t.txn_id} · ${t.customer_id}</div>
+          <div class="txn-amt">₹${Number(t.amount).toLocaleString('en-IN', {minimumFractionDigits: 0})}</div>
+          <div class="txn-meta">${t.merchant_type} · ${t.city} · ${t.hour_of_day}:00h</div>
+        </div>
+        <div>
+          <div class="txn-meta">Velocity: ${t.velocity}/hr · Amount ratio: ${t.amount_vs_avg}x avg</div>
+          <div class="txn-meta" style="margin-top:4px">
+            ${t.is_fraud
+              ? `<span style="color:var(--rule);font-weight:700">⚠ FRAUD — ${t.fraud_type?.replace(/_/g,' ')}</span>`
+              : `<span style="color:var(--ai)">✓ LEGITIMATE</span>`
+            }
+          </div>
+        </div>
+        <div>
+          <div class="txn-meta" style="margin-bottom:4px">AI Risk Signals:</div>
+          <div class="txn-meta" style="font-size:10px;line-height:1.6">${(t.ai_signals||[]).slice(0,3).join(' · ') || 'None detected'}</div>
+        </div>
+        <div class="verdict">
+          <span class="verdict-chip label">RULES</span>
+          <span class="verdict-chip ${t.rule_flagged ? 'flagged' : 'clear'}">${ruleChip}</span>
+        </div>
+        <div class="verdict">
+          <span class="verdict-chip label">AI MODEL</span>
+          <span class="verdict-chip ${t.ai_flagged ? 'flagged' : 'clear'}">${aiChip}</span>
+          <span class="risk-pill ${riskClass}">${t.ai_risk_score.toFixed(0)}/100</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('pagination').innerHTML = `
+    <button class="page-btn" onclick="changePage(${currentPage-1})" ${currentPage<=1 ? 'disabled' : ''}>← Prev</button>
+    <span>Page ${data.page} of ${data.total_pages} &nbsp;·&nbsp; ${data.total} transactions</span>
+    <button class="page-btn" onclick="changePage(${currentPage+1})" ${currentPage>=data.total_pages ? 'disabled' : ''}>Next →</button>
+  `;
+}
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  currentPage   = 1;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadTransactions();
+}
+
+function changePage(p) {
+  currentPage = p;
+  loadTransactions();
+}
+
+async function reinitialize() {
+  document.getElementById('statusTag').textContent = 'Regenerating...';
+  document.getElementById('summaryBanner').innerHTML = '<div class="loading"><span class="spinner"></span> Training AI model...</div>';
+  await fetch(`${API}/reinitialize`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({n_transactions: 300, fraud_rate: 0.08})
+  });
+  await Promise.all([loadStatus(), loadMetrics(), loadFraudTypes()]);
+  currentPage = 1;
+  loadTransactions();
+}
+
+(async () => {
+  await Promise.all([loadStatus(), loadMetrics(), loadFraudTypes()]);
+  loadTransactions();
+})();
+</script>
+</body>
+</html>
